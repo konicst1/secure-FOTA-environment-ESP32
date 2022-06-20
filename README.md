@@ -60,3 +60,46 @@ key.
 **5.** Run the application on a local network. Note that the application exposes a RESTful API that is used to perform operations. The application uses secret cryptographic resources and automatically uploads the
 provided data for distribution. Thus, it should never be accessible from
 the Internet or an untrusted network.
+
+**Application usage**
+
+After the successful setup, the application can be used to secure and upload to
+distribution any plain firmware binary file built in the ESP-IDF framework.
+Note that the Update Server application must be configured and available to
+upload the image successfully.
+
+Usage of the FW Author application:
+
+**1.** Include the public manifest digital signature key, private manifest encryption key and private firmware pre-encryption key in the firmware binary.
+
+**2.** Build a firmware binary file with ESP-IDF.
+
+**3.** Send a POST request to the application /upload endpoint. The request
+must contain the following mandatory parameters:
+
+a) _id (integer)_ – id that will be used by the Update Server to identify the
+age of the firmware image (image with the highest id is considered
+as the newest image)
+
+b) _deviceType (String)_ – a device type that is compatible with the
+firmware image
+
+c) _fwName (String)_ – the name of the firmware, will be used by the
+Update Server to identify the firmware image
+
+d) _firmwarePath (String)_ – path to the location of the built firmware
+binary, authenticate the request in accordance with the implemented
+authentication method
+
+**4.** Collect the HTTP response. The following response codes are to be
+expected:
+
+a) _200 (OK)_ – The firmware image file has been uploaded successfully.
+
+b) _404 (NOT FOUND)_ – The firmware binary file is not in the specified
+location.
+
+c) _422 (UNPROCESSABLE ENTITY)_ – Files configured in the application.properties file cannot be loaded.
+
+d) Server error response codes will be returned in case of any other error.
+Refer to the application log for further information.
