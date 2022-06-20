@@ -8,6 +8,9 @@ According to current standards, the _encrypt-then-mac_ schema should be used ins
  
 This implementation consist of FW Author Application, Update Server application in Spring Boot and ESP32 OTA interface which optimizes and simplifies the use of secure OTA solution provided in ESP-IDF 5.0.
 
+![image](https://user-images.githubusercontent.com/61184243/174631936-3a89139c-61a7-47c1-9ac5-1f3256a8b3a7.png)
+
+
 **INSTRUCTIONS:**
 
 The solution consists of two applications implementing the FW Author and the Update Server and a secure OTA update solution for ESP32 devices which utilizes the existing OTA Upgrades with Pre-Encrypted Firmware solution pre-released in ESP-IDF v5.0. In the following sections, the implementation details are described, and an instruction guide for a secure FOTA setup is supplied.
