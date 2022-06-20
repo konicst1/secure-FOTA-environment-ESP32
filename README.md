@@ -13,7 +13,7 @@ This implementation consist of FW Author Application, Update Server application 
 The solution consists of two applications implementing the FW Author and the Update Server and a secure OTA update solution for ESP32 devices which utilizes the existing OTA Upgrades with Pre-Encrypted Firmware solution pre-released in ESP-IDF v5.0. In the following sections, the implementation details are described, and an instruction guide for a secure FOTA setup is supplied.
 
 
-**Cryptographic resources establishment and device configuration**
+**0. Cryptographic resources establishment and device configuration**
 
 Before the secure OTA update is implemented, cryptographic keys should be generated and an ESP32 device should be configured to fulfill the security requirements of the provided solution. Cryptographic keys should be generated strictly on devices with proper entropy sources using secure libraries such as OpenSSL.
 
@@ -33,7 +33,7 @@ used only along with ESP32 revision 1 devices. For other ESP32 revisions, refer 
 
 **7.** Generate a cryptographic key pair for secure communication with the Update Server and obtain a trusted certificate for the Update Server.
 
-**FW Author application**
+**1. FW Author application**
 
 The FW Author application is a utility that allows the firmware author to
 upload the built firmware binary into distribution (Update Server) securely.
@@ -103,3 +103,121 @@ c) _422 (UNPROCESSABLE ENTITY)_ – Files configured in the application.propert
 
 d) Server error response codes will be returned in case of any other error.
 Refer to the application log for further information.
+
+**Application function**
+After the POST request is sent, the following procedures are performed:
+
+**1.** The firmware binary is loaded and the manifest data is extracted.
+
+**2.** Manifest data is digitally signed and encrypted using the provided keys
+from the KeyStore.
+
+**3.** The firmware binary is signed with the secure boot signing key.
+
+**4.** The firmware encrypted image is created in the format compatible with
+the ESP-IDF OTA solution.
+
+**5.** Both files are uploaded securely to the Update Server over HTTPS with
+a single authenticated POST request
+
+
+**2. Update Server application**
+
+FW Update Server application is responsible for maintaining the uploaded
+firmware images and providing them to consumer IoT devices. It is based on
+the Spring Boot framework and utilizes a MySQL database for firmware image management. The application provides an API for easy implementation
+of other data sources (by default, the local filesystem storage implementation
+is used). It also allows the developer to easily configure the request filtering
+and authentication implementation using the Spring Boot security configuration.
+
+
+**Application setup**
+
+**1.** Create a Java KeyStore (e.g. in PKCS #12 format) and import the
+Update Server private key and the trusted certificate of the Update
+Server.
+
+**2.** Setup a MySQL database with the provided create script.
+
+**3.** Secure the KeyStore with a password as well as the imported key.
+
+**4.** Locate the resources folder and insert the created KeyStore.
+
+**5.** In the resources folder, locate the application.properties file and configure the KeyStore parameters, SSL parameters, database URL and
+credentials and a path for filesystem data storage.
+
+**6.** Configure the authentication mechanism and request filtering in the SecurityConfiguration file located in the configuration package if needed.
+Note that by default the application uses an HTTP Basic Authentication
+mechanism with an enforced SSL connection and in-memory user manager. If a more robust communication scheme is implemented, a more
+robust authentication protocol such as OAuth 2.0 must be used (by default, the upload process is done via a single HTTP request). Rebuild
+the application if any changes are applied.
+
+**7.** Run the application on an Internet-accessible server. Note that the
+application can be run as a Linux service.
+
+
+**Application usage and function**
+
+After the successful application and database setup, it is ready to accept and
+distribute firmware images.
+
+Usage of the Update Server application:
+
+• **_Accept the firmware image upload_** — Available on the _/uploadFile_
+endpoint with a POST request. Usage of this endpoint requires authentication and is automatically used by the FW Author application. The endpoint returns _OK (String)_ if the upload was successful, else a server
+error is returned. The mandatory request parameters are:
+a) _manifestFile (file)_ – File containing the signed and encrypted manifest data.
+
+b) _firmwareFile (file)_ – File containing the signed and encrypted firmware
+image data.
+
+c) _id (integer)_ – id that will be used by the Update Server to identify
+the age of the firmware image (image with the highest id is considered as the newest image)
+
+d) _deviceType (String)_ – a device type that is compatible with the
+firmware image
+
+e) _fwName (String)_ – the name of the firmware, will be used by the
+Update Server to identify the firmware image
+
+• **_Request the newest firmware update manifest_** file — Available
+on the _/update/newest/manifest_ endpoint with a GET request. The
+application will find the newest firmware update for the given device
+type and sends its manifest file to the response output stream. 200
+(OK) response is returned if manifest supply is successful, else 404 (NOT
+FOUND) is returned.
+The mandatory request parameter is deviceType (String) containing the
+type of the device to supply the update to.
+
+• **_Request the newest firmware update image file_** — Available on
+the _/update/newest/binary_ endpoint with a GET request. The application will find the newest firmware update for the given device type
+and sends its image file to the response output stream. 200 (OK) response is returned if image supply is successful, else 404 (NOT FOUND)
+is returned.
+
+The mandatory request parameter is deviceType (String) containing the
+type of the device to supply the update to.
+
+
+**3. ESP32 secure OTA interface**
+The ESP32 secure interface provides two basic functionalities that can be easily extended for a more complex solution. It is possible to check if any new
+update is available with the _check_for_update_ function and perform the update to the newest firmware available with the perform_update function. For
+further information about the usage of the interface, refer to the documentation of the _secure_ota_esp32.h_ header file.
+
+**Interface usage and function**
+
+The following steps are to be performed in order to use the interface properly:
+
+**1.** Include the secure_ota_esp32.h header file to the developed application
+and the configuration elements from the _Kconfig.projbuild_ file.
+
+**2.** Configure the values of EXAMPLE_FIRMWARE_UPGRADE_URL
+and the CONFIG_UPDATE_CHECK_URL to use the given Update
+Server.
+
+**3.** To check for an available update, create a freeRTOS task to perform the
+_check_for_update_ function. This function connects to the Update Server
+over a TLS connection, retrieves the firmware manifest and performs
+a decision-making process.
+
+**4.** To perform an update to the newest available firmware, run the _perform_update_ function. This function creates a freeRTOS subtask that
+utilizes the ESP-IDF Pre-Encrypted OTA Update solution to perform the update.
